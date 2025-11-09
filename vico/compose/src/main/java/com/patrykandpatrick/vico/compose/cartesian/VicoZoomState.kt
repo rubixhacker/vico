@@ -107,7 +107,14 @@ public class VicoZoomState {
   /** Triggers a zoom. */
   public suspend fun zoom(zoom: Zoom) {
     withUpdated { context, layerDimensions, bounds ->
-      val newValue = zoom.getValue(context, layerDimensions, bounds)
+      val newValue = if (zoom is Zoom.Auto) {
+          val scalableContentWidth = layerDimensions.getScalableContentWidth(context)
+          val visibleWidth = scalableContentWidth - scroll
+          val targetWidth = minOf(bounds.width(), visibleWidth)
+          (bounds.width() / targetWidth).coerceIn(zoom.min, zoom.max)
+      } else {
+          zoom.getValue(context, layerDimensions, bounds)
+      }
       if (newValue != value) {
         zoom(newValue / value, context.canvasBounds.centerX(), scroll, bounds)
       }

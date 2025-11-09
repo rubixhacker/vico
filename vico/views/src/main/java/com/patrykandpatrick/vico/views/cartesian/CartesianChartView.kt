@@ -119,11 +119,21 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 
   private val chartScrollListener =
     object : ScrollHandler.Listener {
+      private var isScrolling = false
+      private val scrollEndChecker = Runnable {
+        if (isScrolling) {
+          isScrolling = false
+          chart?.autoZoom?.let { zoomHandler?.zoom(it) }
+        }
+      }
       override fun onValueChanged(old: Float, new: Float) {
         val delta = old - new
         val interaction = lastAcceptedInteraction
         lastAcceptedInteraction = interaction?.moveXBy(delta)
         measuringContext.pointerPosition = lastAcceptedInteraction?.point
+        isScrolling = true
+        handler.removeCallbacks(scrollEndChecker)
+        handler.postDelayed(scrollEndChecker, 100)
         invalidate()
       }
     }
@@ -144,13 +154,15 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     }
 
   /** Houses information on the [CartesianChart]’s zoom factor. Allows for zoom customization. */
-  public var zoomHandler: ZoomHandler by
+  public var zoomHandler: ZoomHandler? by
     invalidatingObservable(
-      ZoomHandler.default(themeHandler.zoomEnabled, scrollHandler.scrollEnabled)
+      if (chart?.autoZoom != null) ZoomHandler(chart!!.autoZoom!!)
+      else ZoomHandler.default(themeHandler.zoomEnabled, scrollHandler.scrollEnabled),
     ) { oldValue, newValue ->
       oldValue?.clearUpdated()
-      newValue.invalidate = ::invalidate
-      measuringContext.zoomEnabled = newValue.zoomEnabled && measuringContext.scrollEnabled
+      newValue?.invalidate = ::invalidate
+      measuringContext.zoomEnabled =
+        newValue?.zoomEnabled == true && measuringContext.scrollEnabled
     }
 
   private val motionEventHandler =
@@ -171,6 +183,9 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
   /** The [CartesianChart] displayed by this [View]. */
   public var chart: CartesianChart? by
     observable(themeHandler.chart) { _, _, newValue ->
+      if (newValue?.autoZoom != null) {
+        zoomHandler = ZoomHandler(newValue.autoZoom!!)
+      }
       tryInvalidate(chart = newValue, model = model, updateRanges = true)
     }
 
@@ -316,7 +331,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     val superHandled = super.onTouchEvent(event)
     if (!isEnabled) return superHandled
     val scaleHandled =
-      if (zoomHandler.zoomEnabled && event.pointerCount > 1 && scrollHandler.scrollEnabled) {
+      if (zoomHandler?.zoomEnabled == true && event.pointerCount > 1 && scrollHandler.scrollEnabled) {
         scaleGestureDetector.onTouchEvent(event)
       } else {
         false
@@ -349,7 +364,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
 
   private fun handleZoom(focusX: Float, focusY: Float, zoomChange: Float) {
     val chart = chart ?: return
-    zoomHandler.zoom(zoomChange, focusX, scrollHandler.value, chart.layerBounds)
+    zoomHandler?.zoom(zoomChange, focusX, scrollHandler.value, chart.layerBounds)
     handleInteraction(Interaction.Zoom(Point(focusX, focusY)))
   }
 
@@ -383,8 +398,8 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
         postInvalidateOnAnimation()
       }
 
-      zoomHandler.consumePendingScroll(scrollHandler::scroll)
-      zoomHandler.update(measuringContext, layerDimensions, chart.layerBounds, scrollHandler.value)
+      zoomHandler?.consumePendingScroll(scrollHandler::scroll)
+      zoomHandler?.update(measuringContext, layerDimensions, chart.layerBounds, scrollHandler.value)
       scrollHandler.update(measuringContext, chart.layerBounds, layerDimensions)
 
       val drawingContext =
@@ -394,7 +409,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
           layerDimensions,
           chart.layerBounds,
           scrollHandler.value,
-          zoomHandler.value,
+          zoomHandler?.value ?: 1f,
         )
 
       chart.draw(drawingContext)
@@ -408,7 +423,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
   override fun onSaveInstanceState(): Parcelable =
     Bundle().apply {
       scrollHandler.saveInstanceState(this)
-      zoomHandler.saveInstanceState(this)
+      zoomHandler?.saveInstanceState(this)
       putParcelable(SUPER_STATE_KEY, super.onSaveInstanceState())
     }
 
@@ -416,7 +431,7 @@ constructor(context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
     var superState = state
     if (state is Bundle) {
       scrollHandler.restoreInstanceState(state)
-      zoomHandler.restoreInstanceState(state)
+      zoomHandler?.restoreInstanceState(state)
       superState =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
           state.getParcelable(SUPER_STATE_KEY, BaseSavedState::class.java)

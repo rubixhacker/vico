@@ -82,7 +82,7 @@ public fun CartesianChartHost(
   modelProducer: CartesianChartModelProducer,
   modifier: Modifier = Modifier,
   scrollState: VicoScrollState = rememberVicoScrollState(),
-  zoomState: VicoZoomState = rememberDefaultVicoZoomState(scrollState.scrollEnabled),
+  zoomState: VicoZoomState? = null,
   animationSpec: AnimationSpec<Float>? = defaultCartesianDiffAnimationSpec,
   animateIn: Boolean = true,
   consumeMoveEvents: Boolean = false,
@@ -92,13 +92,23 @@ public fun CartesianChartHost(
   val modelWrapper by modelProducer.collectAsState(chart, animationSpec, animateIn, mutableRanges)
   val (model, previousModel, ranges, extraStore) = modelWrapper
 
+  val resolvedZoomState =
+    zoomState
+      ?: chart.autoZoom?.let { autoZoom ->
+        rememberVicoZoomState(
+          initialZoom = autoZoom,
+          minZoom = autoZoom,
+          maxZoom = autoZoom,
+        )
+      } ?: rememberDefaultVicoZoomState(scrollState.scrollEnabled)
+
   CartesianChartHostBox(modifier) {
     if (model != null) {
       CartesianChartHostImpl(
         chart,
         model,
         scrollState,
-        zoomState,
+        resolvedZoomState,
         ranges,
         consumeMoveEvents,
         previousModel,
@@ -131,7 +141,7 @@ public fun CartesianChartHost(
   model: CartesianChartModel,
   modifier: Modifier = Modifier,
   scrollState: VicoScrollState = rememberVicoScrollState(),
-  zoomState: VicoZoomState = rememberDefaultVicoZoomState(scrollState.scrollEnabled),
+  zoomState: VicoZoomState? = null,
   consumeMoveEvents: Boolean = false,
 ) {
   val ranges = remember { MutableCartesianChartRanges() }
@@ -139,12 +149,23 @@ public fun CartesianChartHost(
     ranges.reset()
     chart.updateRanges(ranges, model)
   }
+
+  val resolvedZoomState =
+    zoomState
+      ?: chart.autoZoom?.let { autoZoom ->
+        rememberVicoZoomState(
+          initialZoom = autoZoom,
+          minZoom = autoZoom,
+          maxZoom = autoZoom,
+        )
+      } ?: rememberDefaultVicoZoomState(scrollState.scrollEnabled)
+
   CartesianChartHostBox(modifier) {
     CartesianChartHostImpl(
       chart,
       model,
       scrollState,
-      zoomState,
+      resolvedZoomState,
       ranges.toImmutable(),
       consumeMoveEvents,
     )
@@ -211,6 +232,12 @@ internal fun CartesianChartHostImpl(
 
   LaunchedEffect(zoomState, scrollState) {
     zoomState.pendingScroll.collect { scrollState.scroll(it) }
+  }
+
+  LaunchedEffect(scrollState.scrollableState.isScrollInProgress) {
+    if (!scrollState.scrollableState.isScrollInProgress) {
+      chart.autoZoom?.let { zoomState.zoom(it) }
+    }
   }
 
   DisposableEffect(scrollState) { onDispose { scrollState.clearUpdated() } }

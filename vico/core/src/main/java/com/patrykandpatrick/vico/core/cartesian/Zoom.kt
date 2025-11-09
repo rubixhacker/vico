@@ -30,6 +30,27 @@ public fun interface Zoom {
     bounds: RectF,
   ): Float
 
+  /**
+   * Automatically adjusts the zoom factor to fit the content within the [CartesianChart]’s bounds.
+   *
+   * @param min the minimum zoom factor.
+   * @param max the maximum zoom factor.
+   */
+  public data class Auto(val min: Float, val max: Float) : Zoom {
+    override fun getValue(
+      context: CartesianMeasuringContext,
+      layerDimensions: CartesianLayerDimensions,
+      bounds: RectF,
+    ): Float {
+      val scalableContentWidth = layerDimensions.getScalableContentWidth(context)
+      return if (scalableContentWidth == 0f) {
+        1f
+      } else {
+        ((bounds.width() - layerDimensions.unscalablePadding) / scalableContentWidth).coerceIn(min, max)
+      }
+    }
+  }
+
   /** Houses [Zoom] singletons and factory functions. */
   public companion object {
     /** Ensures all of the [CartesianChart]’s content is visible. */
