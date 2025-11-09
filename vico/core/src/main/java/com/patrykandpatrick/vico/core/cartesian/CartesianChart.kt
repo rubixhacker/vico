@@ -74,6 +74,7 @@ private constructor(
   protected val persistentMarkers: (PersistentMarkerScope.(ExtraStore) -> Unit)? = null,
   protected val getXStep: ((CartesianChartModel) -> Double) = { it.getXDeltaGcd() },
   public val markerController: CartesianMarkerController,
+  public val autoZoom: Zoom.Auto?,
   /** @suppress */
   @get:RestrictTo(RestrictTo.Scope.LIBRARY_GROUP) public val id: UUID,
   private var previousMarkerTargetHashCode: Int?,
@@ -220,6 +221,7 @@ private constructor(
     persistentMarkers: (PersistentMarkerScope.(ExtraStore) -> Unit)? = null,
     getXStep: ((CartesianChartModel) -> Double) = { it.getXDeltaGcd() },
     markerController: CartesianMarkerController = CartesianMarkerController.ShowOnPress,
+    autoZoom: Zoom.Auto? = null,
   ) : this(
     layers = layers,
     startAxis = startAxis,
@@ -235,6 +237,7 @@ private constructor(
     persistentMarkers = persistentMarkers,
     getXStep = getXStep,
     markerController = markerController,
+    autoZoom = autoZoom,
     id = UUID.randomUUID(),
     previousMarkerTargetHashCode = null,
     persistentMarkerMap = mutableMapOf(),
@@ -467,6 +470,7 @@ private constructor(
     persistentMarkers: (PersistentMarkerScope.(ExtraStore) -> Unit)? = this.persistentMarkers,
     getXStep: ((CartesianChartModel) -> Double) = this.getXStep,
     markerController: CartesianMarkerController = this.markerController,
+    autoZoom: Zoom.Auto? = this.autoZoom,
   ): CartesianChart =
     CartesianChart(
       layers = layers,
@@ -483,6 +487,7 @@ private constructor(
       persistentMarkers = persistentMarkers,
       getXStep = getXStep,
       markerController = markerController,
+      autoZoom = autoZoom,
       id = id,
       previousMarkerTargetHashCode = previousMarkerTargetHashCode,
       persistentMarkerMap = persistentMarkerMap,
@@ -506,7 +511,8 @@ private constructor(
         topAxis == other.topAxis &&
         endAxis == other.endAxis &&
         bottomAxis == other.bottomAxis &&
-        markerController == other.markerController
+        markerController == other.markerController &&
+        autoZoom == other.autoZoom
 
   override fun hashCode(): Int {
     var result = marker.hashCode()
@@ -524,6 +530,7 @@ private constructor(
     result = 31 * result + bottomAxis.hashCode()
     result = 31 * result + id.hashCode()
     result = 31 * result + markerController.hashCode()
+    result = 31 * result + autoZoom.hashCode()
     return result
   }
 

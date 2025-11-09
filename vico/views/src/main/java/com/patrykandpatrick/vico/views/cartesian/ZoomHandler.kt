@@ -40,6 +40,17 @@ public class ZoomHandler(
   private val minZoom: Zoom = Zoom.Content,
   private val maxZoom: Zoom = Zoom.max(Zoom.fixed(Defaults.MAX_ZOOM), Zoom.Content),
 ) {
+  /**
+   * @param autoZoom the [Zoom.Auto] instance.
+   */
+  public constructor(
+    autoZoom: Zoom.Auto,
+  ) : this(
+    initialZoom = autoZoom,
+    minZoom = autoZoom,
+    maxZoom = autoZoom,
+  )
+
   private var overridden = false
   private val listeners = mutableSetOf<Listener>()
   private var context: CartesianMeasuringContext? = null
@@ -70,7 +81,14 @@ public class ZoomHandler(
   /** Triggers a zoom. */
   public fun zoom(zoom: Zoom) {
     withUpdated { context, layerDimensions, bounds ->
-      val newValue = zoom.getValue(context, layerDimensions, bounds)
+        val newValue = if (zoom is Zoom.Auto) {
+            val scalableContentWidth = layerDimensions.getScalableContentWidth(context)
+            val visibleWidth = scalableContentWidth - scroll
+            val targetWidth = minOf(bounds.width(), visibleWidth)
+            (bounds.width() / targetWidth).coerceIn(zoom.min, zoom.max)
+        } else {
+            zoom.getValue(context, layerDimensions, bounds)
+        }
       if (newValue != value) {
         zoom(newValue / value, context.canvasBounds.centerX(), scroll, bounds)
       }
